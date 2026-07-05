@@ -76,6 +76,19 @@ export function update(flow: Flow, data) {
     return () => fetchApi.put(`/flows/${flow.id}`, data);
 }
 
+export function updateContentView(
+    flow: Flow,
+    part: "request" | "response",
+    contentView: string,
+    content: string,
+) {
+    return () =>
+        fetchApi.put(
+            `/flows/${flow.id}/${part}/content/${encodeURIComponent(contentView)}`,
+            { content },
+        );
+}
+
 export function uploadContent(flow: Flow, file, type) {
     const body = new FormData();
     file = new window.Blob([file], { type: "plain/text" });

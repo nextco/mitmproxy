@@ -714,6 +714,26 @@ class FlowContentView(RequestHandler):
             ret["timestamp"] = timestamp
         return ret
 
+    def put(self, flow_id, message, content_view) -> None:
+        flow = self.flow
+        assert isinstance(flow, (HTTPFlow, TCPFlow, UDPFlow))
+        if message == "messages":
+            raise APIError(400, "Editing individual messages is not supported.")
+
+        msg = getattr(flow, message)
+        flow.backup()
+        try:
+            msg.content = contentviews.reencode_message(
+                self.json["content"], msg, flow, content_view
+            )
+        except APIError:
+            flow.revert()
+            raise
+        except Exception as e:
+            flow.revert()
+            raise APIError(400, f"Could not reencode content as {content_view}: {e}")
+        self.view.update([flow])
+
     def get(self, flow_id, message, content_view) -> None:
         flow = self.flow
         assert isinstance(flow, (HTTPFlow, TCPFlow, UDPFlow))

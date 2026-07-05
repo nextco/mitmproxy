@@ -4,7 +4,6 @@ import { useAppDispatch, useAppSelector } from "../../ducks";
 import { setContentViewFor } from "../../ducks/ui/flow";
 import type { ContentViewData } from "./useContentView";
 import { useContentView } from "./useContentView";
-import { useContent } from "./useContent";
 import { MessageUtils } from "../../flow/utils";
 import FileChooser from "../common/FileChooser";
 import * as flowActions from "../../ducks/flows";
@@ -22,11 +21,17 @@ type HttpMessageProps = {
 
 export default function HttpMessage({ flow, message }: HttpMessageProps) {
     const [isEdited, setIsEdited] = useState<boolean>(false);
+    const part = flow.request === message ? "request" : "response";
+    const contentView = useAppSelector(
+        (state) => state.ui.flow.contentViewFor[flow.id + part] || "Auto",
+    );
+
     if (isEdited) {
         return (
             <HttpMessageEdit
                 flow={flow}
                 message={message}
+                contentView={contentView}
                 stopEdit={() => setIsEdited(false)}
             />
         );
@@ -35,6 +40,7 @@ export default function HttpMessage({ flow, message }: HttpMessageProps) {
             <HttpMessageView
                 flow={flow}
                 message={message}
+                contentView={contentView}
                 startEdit={() => setIsEdited(true)}
             />
         );
@@ -44,29 +50,43 @@ export default function HttpMessage({ flow, message }: HttpMessageProps) {
 type HttpMessageEditProps = {
     flow: HTTPFlow;
     message: HTTPMessage;
+    contentView: string;
     stopEdit: () => void;
 };
 
-function HttpMessageEdit({ flow, message, stopEdit }: HttpMessageEditProps) {
+function HttpMessageEdit({
+    flow,
+    message,
+    contentView,
+    stopEdit,
+}: HttpMessageEditProps) {
     const dispatch = useAppDispatch();
 
     const part = flow.request === message ? "request" : "response";
-    const url = MessageUtils.getContentURL(flow, message);
-    const content = useContent(url, message.contentHash);
+    const contentViewData = useContentView(
+        flow,
+        message,
+        contentView,
+        undefined,
+        message.contentHash,
+    );
     const [editedContent, setEditedContent] = useState<string>();
 
     const save = async () => {
         await dispatch(
-            flowActions.update(flow, {
-                [part]: { content: editedContent ?? content ?? "" },
-            }),
+            flowActions.updateContentView(
+                flow,
+                part,
+                contentViewData?.view_name ?? contentView,
+                editedContent ?? contentViewData?.text ?? "",
+            ),
         );
         stopEdit();
     };
     return (
         <div className="contentview" key="edit">
             <div className="controls">
-                <h5>[Editing]</h5>
+                <h5>[Editing] {contentView}</h5>
                 <Button
                     onClick={save}
                     icon="confirm"
@@ -86,7 +106,7 @@ function HttpMessageEdit({ flow, message, stopEdit }: HttpMessageEditProps) {
                 </Button>
             </div>
             <CodeEditor
-                initialContent={content || ""}
+                initialContent={contentViewData?.text ?? ""}
                 onChange={setEditedContent}
             />
         </div>
@@ -96,15 +116,18 @@ function HttpMessageEdit({ flow, message, stopEdit }: HttpMessageEditProps) {
 type HttpMessageViewProps = {
     flow: HTTPFlow;
     message: HTTPMessage;
+    contentView: string;
     startEdit: () => void;
 };
 
-function HttpMessageView({ flow, message, startEdit }: HttpMessageViewProps) {
+function HttpMessageView({
+    flow,
+    message,
+    contentView,
+    startEdit,
+}: HttpMessageViewProps) {
     const dispatch = useAppDispatch();
     const part = flow.request === message ? "request" : "response";
-    const contentView = useAppSelector(
-        (state) => state.ui.flow.contentViewFor[flow.id + part] || "Auto",
-    );
 
     const [maxLines, setMaxLines] = useState<number>(
         useAppSelector((state) => state.options.content_view_lines_cutoff),
